@@ -16,7 +16,7 @@ backup() {
     # If find, cpio, or zstd fails, the pipeline returns a non-zero code
     find . $FIND_EXCLUDES -print0 | \
     cpio $CPIO_VERBOSE --null -ov -H newc 2>/dev/null | \
-    zstd -T0 -3 > "$ARCHIVE_PATH"
+    zstd -T$ZSTD_THREADS -$ZSTD_LEVEL > "$ARCHIVE_PATH"
     
     # Capture the pipeline's exit status
     local status=$?
@@ -43,7 +43,7 @@ restore() {
     cd /volume || exit 1
 
     # If zstd or cpio fails, the pipeline returns a non-zero code
-    zstd -d -c "$ARCHIVE_PATH" | cpio $CPIO_VERBOSE -idmv
+    zstd -d -c -T$ZSTD_THREADS "$ARCHIVE_PATH" | cpio $CPIO_VERBOSE -idmv
     
     local status=$?
     if [ $status -ne 0 ]; then
@@ -52,15 +52,44 @@ restore() {
     fi
 }
 
+usage() {
+    cat >&2 << EOF
+Usage: $0 <operation> [options] [archive]
+
+Operations:
+  backup    Create a backup of /volume
+  restore   Restore /volume from an archive
+
+Options:
+  -h        Show this help message
+  -v        Verbose output
+  -f        Force operation (backup: ignore empty volume; restore: overwrite non-empty volume)
+  -e GLOB   Exclude files matching GLOB from backup (can be used multiple times)
+  -c LEVEL  Compression level (1-22, default: 3)
+  -t THREADS Number of threads for zstd (default: 0 for auto-detect)
+
+Archive:
+  If not specified or "-", use stdout/stdin
+  Otherwise, archive is saved to /backup/<name>.cpio.zst
+
+Examples:
+  $0 backup -c 10 -t 4 my-backup
+  $0 restore -t 4 my-backup
+  $0 backup -e '*.log' -e '*.tmp' -c 19 full-backup
+EOF
+}
+
 OPERATION=$1
 FORCE=""
 FIND_EXCLUDES=""
 CPIO_VERBOSE=""
 EXTENSION=".cpio.zst"
+ZSTD_LEVEL=3
+ZSTD_THREADS=0
 
 OPTIND=2
 
-while getopts "h?vfe:" OPTION; do
+while getopts "h?vfe:c:t:" OPTION; do
     case "$OPTION" in
     h|\?)
         usage
@@ -79,6 +108,24 @@ while getopts "h?vfe:" OPTION; do
         ;;
     v)
         CPIO_VERBOSE="-v"
+        ;;
+    c)
+        ZSTD_LEVEL="$OPTARG"
+        # Validate compression level
+        if ! [[ "$ZSTD_LEVEL" =~ ^[0-9]+$ ]] || [ "$ZSTD_LEVEL" -lt 1 ] || [ "$ZSTD_LEVEL" -gt 22 ]; then
+            >&2 echo "Error: Compression level must be between 1 and 22"
+            usage
+            exit 1
+        fi
+        ;;
+    t)
+        ZSTD_THREADS="$OPTARG"
+        # Validate thread count
+        if ! [[ "$ZSTD_THREADS" =~ ^[0-9]+$ ]]; then
+            >&2 echo "Error: Thread count must be a non-negative integer"
+            usage
+            exit 1
+        fi
         ;;
     *)
         usage
