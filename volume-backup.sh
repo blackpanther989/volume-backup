@@ -66,7 +66,7 @@ Options:
   -f        Force operation (backup: ignore empty volume; restore: overwrite non-empty volume)
   -e GLOB   Exclude files matching GLOB from backup (can be used multiple times)
   -c LEVEL  Compression level (1-22, default: 1)
-  -t THREADS Number of threads for zstd (default: 1)
+  -t THREADS Number of threads for zstd (default: 1; 0 = auto)
 
 Archive:
   If not specified or "-", use stdout/stdin
@@ -120,9 +120,9 @@ while getopts "h?vfe:c:t:" OPTION; do
         ;;
     t)
         ZSTD_THREADS="$OPTARG"
-        # Validate thread count
-        if ! [[ "$ZSTD_THREADS" =~ ^[0-9]+$ ]] || [ "$ZSTD_THREADS" -lt 1 ]; then
-            >&2 echo "Error: Thread count must be a positive integer"
+        # Validate thread count (allow 0 for zstd auto-detection)
+        if ! [[ "$ZSTD_THREADS" =~ ^[0-9]+$ ]] || [ "$ZSTD_THREADS" -lt 0 ]; then
+            >&2 echo "Error: Thread count must be a non-negative integer (0 = auto)"
             usage
             exit 1
         fi
