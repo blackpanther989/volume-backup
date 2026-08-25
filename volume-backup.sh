@@ -65,8 +65,8 @@ Options:
   -v        Verbose output
   -f        Force operation (backup: ignore empty volume; restore: overwrite non-empty volume)
   -e GLOB   Exclude files matching GLOB from backup (can be used multiple times)
-  -c LEVEL  Compression level (1-22, default: 3)
-  -t THREADS Number of threads for zstd (default: 0 for auto-detect)
+  -c LEVEL  Compression level (1-22, default: 1)
+  -t THREADS Number of threads for zstd (default: 1)
 
 Archive:
   If not specified or "-", use stdout/stdin
@@ -84,8 +84,8 @@ FORCE=""
 FIND_EXCLUDES=""
 CPIO_VERBOSE=""
 EXTENSION=".cpio.zst"
-ZSTD_LEVEL=3
-ZSTD_THREADS=0
+ZSTD_LEVEL=1
+ZSTD_THREADS=1
 
 OPTIND=2
 
@@ -121,8 +121,8 @@ while getopts "h?vfe:c:t:" OPTION; do
     t)
         ZSTD_THREADS="$OPTARG"
         # Validate thread count
-        if ! [[ "$ZSTD_THREADS" =~ ^[0-9]+$ ]]; then
-            >&2 echo "Error: Thread count must be a non-negative integer"
+        if ! [[ "$ZSTD_THREADS" =~ ^[0-9]+$ ]] || [ "$ZSTD_THREADS" -lt 1 ]; then
+            >&2 echo "Error: Thread count must be a positive integer"
             usage
             exit 1
         fi
